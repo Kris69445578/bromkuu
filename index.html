@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>WAMITI'S HL ANALYZER</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #121212;
+            color: #eee;
+            padding: 8px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #app {
+            height: calc(100vh - 16px);
+            max-width: 100%;
+            background: #1e1e1e;
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0, 87, 255, 0.6);
+            display: grid;
+            grid-template-rows: auto 1fr;
+            overflow: hidden;
+        }
+        header {
+            padding: 10px;
+            font-size: clamp(14px, 4vw, 18px);
+            font-weight: 700;
+            text-align: center;
+            background: linear-gradient(90deg,#0057ff,#00c8ff);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .time-display {
+            font-size: 12px;
+            font-weight: normal;
+            opacity: 0.8;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 8px;
+            padding: 8px;
+            overflow-y: auto;
+            height: 100%;
+        }
+        .vol-card {
+            background: #252525;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.5);
+            display: grid;
+            grid-template-rows: auto auto 1fr auto auto;
+            gap: 8px;
+        }
+        .vol-title {
+            font-size: clamp(12px, 3vw, 14px);
+            color: #7db8ff;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .price-display {
+            font-size: clamp(14px, 3vw, 16px);
+            font-weight: bold;
+            color: white;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            font-size: clamp(10px, 2.5vw, 12px);
+        }
+        .data-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .data-label {
+            color: #7db8ff;
+            font-size: 0.8em;
+        }
+        .indicator-value {
+            font-weight: 600;
+            color: white;
+        }
+        .trend-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 4px;
+        }
+        .trend-up {
+            background-color: #00e676;
+        }
+        .trend-down {
+            background-color: #ff5252;
+        }
+        .trend-neutral {
+            background-color: #ffeb3b;
+        }
+        .chart-container {
+            height: 100px;
+            width: 100%;
+            margin: 6px 0;
+            position: relative;
+        }
+        .mini-chart {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+            background: #121212;
+        }
+        .barrier-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .barrier-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .barrier-label {
+            font-size: clamp(10px, 2.5vw, 11px);
+            color: #abbcff;
+            margin-bottom: 2px;
+        }
+        .barrier-input {
+            width: 100%;
+            background: #121212;
+            border: 1px solid #0057ff;
+            border-radius: 6px;
+            color: white;
+            padding: 4px 6px;
+            font-size: clamp(10px, 2.5vw, 12px);
+            text-align: center;
+        }
+        .signal-area {
+            margin-top: 4px;
+            padding: 6px;
+            border-radius: 8px;
+            font-size: clamp(11px, 3vw, 13px);
+            text-align: center;
+            min-height: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .signal-strength {
+            font-size: 0.8em;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+        .signal-waiting {
+            background: rgba(180, 180, 180, 0.1);
+            color: #aaa;
+        }
+        .signal-higher {
+            background: rgba(0, 255, 0, 0.1);
+            color: #0f0;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+        }
+        .signal-lower {
+            background: rgba(255, 0, 0, 0.1);
+            color: #f00;
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+        .countdown {
+            font-size: clamp(10px, 2.5vw, 11px);
+            color: #00bbff;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .connection-status {
+            position: fixed;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            z-index: 10;
+        }
+        .connected {
+            color: #0f0;
+        }
+        .disconnected {
+            color: #f00;
+        }
+        .connecting {
+            color: #ff0;
+        }
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-top: 6px;
+            font-size: 0.7em;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        .stat-label {
+            color: #7db8ff;
+        }
+        .stat-value {
+            color: white;
+            font-weight: 600;
+        }
+        .volatility-meter {
+            height: 4px;
+            width: 100%;
+            background: #333;
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        .volatility-level {
+            height: 100%;
+            background: linear-gradient(90deg, #00c853, #ffd600, #ff3d00);
+        }
+        .timeframe-selector {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 6px;
+        }
+        .timeframe-btn {
+            background: #333;
+            border: none;
+            color: #aaa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            cursor: pointer;
+        }
+        .timeframe-btn.active {
+            background: #0057ff;
+            color: white;
+        }
+        @media (max-width: 600px) {
+            .main-content {
+                grid-template-columns: 1fr 1fr;
+            }
+            .vol-card {
+                padding: 10px;
+            }
+            .data-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 400px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <span>WAMITI'S HL ANALYZER</span>
+            <span class="time-display" id="current-time">--:--:--</span>
+        </header>
+        <div class="main-content" id="cards-container"></div>
+        <div id="connection-status" class="connection-status disconnected">Disconnected</div>
+    </div>
+    <script>
+        (() => {
+            const volatilities = [
+                { symbol: '1HZ10V', name: 'Vol 10 (1s)', barrierHigher: -0.48, barrierLower: 0.48 },
+                { symbol: '1HZ25V', name: 'Vol 25 (1s)', barrierHigher: -80, barrierLower: 80 },
+                { symbol: '1HZ50V', name: 'Vol 50 (1s)', barrierHigher: -61, barrierLower: 61 },
+                { symbol: '1HZ75V', name: 'Vol 75 (1s)', barrierHigher: -2.6, barrierLower: 2.6 }
+            ];
+            
+            const dataStore = {};
+            let ws = null;
+            const MIN_DATA_POINTS = 30; // Increased for better analysis
+            const CONFIRMATION_PERIOD = 3;
+            const MAX_HISTORY = 200; // Store more data points for better analysis
+            
+            // Update current time
+            function updateCurrentTime() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString();
+                document.getElementById('current-time').textContent = timeStr;
+            }
+            setInterval(updateCurrentTime, 1000);
+            updateCurrentTime();
+            
+            class EMA {
+                constructor(period) {
+                    this.period = period;
+                    this.multiplier = 2 / (period + 1);
+                    this.ema = null;
+                    this.history = [];
+                }
+                
+                update(price) {
+                    this.ema = this.ema === null ? price : (price - this.ema) * this.multiplier + this.ema;
+                    this.history.push(this.ema);
+                    if (this.history.length > MAX_HISTORY) {
+                        this.history.shift();
+                    }
+                    return this.ema;
+                }
+                
+                getCurrent() {
+                    return this.ema;
+                }
+                
+                getHistory() {
+                    return this.history;
+                }
+            }
+            
+            class MACDCalculator {
+                constructor() {
+                    this.fastEMA = new EMA(12);
+                    this.slowEMA = new EMA(26);
+                    this.signalEMA = new EMA(9);
+                    this.history = [];
+                    this.maxHistory = 20;
+                    this.trendDirection = 'neutral';
+                    this.trendStrength = 0;
+                }
+                
+                update(price) {
+                    const fast = this.fastEMA.update(price);
+                    const slow = this.slowEMA.update(price);
+                    const macdLine = fast - slow;
+                    const signalLine = this.signalEMA.update(macdLine);
+                    const histogram = macdLine - signalLine;
+                    
+                    // Calculate trend direction and strength
+                    if (this.history.length > 0) {
+                        const lastHist = this.history[this.history.length - 1].histogram;
+                        if (histogram > 0 && lastHist > 0) {
+                            this.trendDirection = 'up';
+                            this.trendStrength = Math.min(1, histogram / (lastHist * 1.5));
+                        } else if (histogram < 0 && lastHist < 0) {
+                            this.trendDirection = 'down';
+                            this.trendStrength = Math.min(1, Math.abs(histogram) / (Math.abs(lastHist) * 1.5));
+                        } else {
+                            this.trendDirection = 'neutral';
+                            this.trendStrength = 0;
+                        }
+                    }
+                    
+                    this.history.push({ macdLine, signalLine, histogram, direction: this.trendDirection });
+                    if (this.history.length > this.maxHistory) {
+                        this.history.shift();
+                    }
+                    
+                    return { 
+                        macdLine, 
+                        signalLine, 
+                        histogram, 
+                        direction: this.trendDirection,
+                        strength: this.trendStrength
+                    };
+                }
+                
+                getDirection() {
+                    return this.trendDirection;
+                }
+                
+                getStrength() {
+                    return this.trendStrength;
+                }
+            }
+            
+            class RSICalculator {
+                constructor(period = 14) {
+                    this.period = period;
+                    this.gains = [];
+                    this.losses = [];
+                    this.prevPrice = null;
+                    this.rsi = null;
+                    this.history = [];
+                }
+                
+                update(price) {
+                    if (this.prevPrice === null) {
+                        this.prevPrice = price;
+                        return null;
+                    }
+                    
+                    const change = price - this.prevPrice;
+                    this.prevPrice = price;
+                    
+                    const gain = change > 0 ? change : 0;
+                    const loss = change < 0 ? -change : 0;
+                    
+                    this.gains.push(gain);
+                    this.losses.push(loss);
+                    
+                    if (this.gains.length > this.period) {
+                        this.gains.shift();
+                        this.losses.shift();
+                    }
+                    
+                    if (this.gains.length < this.period) {
+                        return null;
+                    }
+                    
+                    const avgGain = this.gains.reduce((sum, val) => sum + val, 0) / this.period;
+                    const avgLoss = this.losses.reduce((sum, val) => sum + val, 0) / this.period;
+                    
+                    this.rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + (avgGain / avgLoss)));
+                    this.history.push(this.rsi);
+                    if (this.history.length > MAX_HISTORY) {
+                        this.history.shift();
+                    }
+                    
+                    return this.rsi;
+                }
+                
+                getCurrent() {
+                    return this.rsi;
+                }
+                
+                getHistory() {
+                    return this.history;
+                }
+            }
+            
+            class VolatilityCalculator {
+                constructor(lookback = 20) {
+                    this.lookback = lookback;
+                    this.prices = [];
+                }
+                
+                update(price) {
+                    this.prices.push(price);
+                    if (this.prices.length > this.lookback) {
+                        this.prices.shift();
+                    }
+                    
+                    if (this.prices.length < 2) return 0;
+                    
+                    const mean = this.prices.reduce((sum, p) => sum + p, 0) / this.prices.length;
+                    const squaredDiffs = this.prices.map(p => Math.pow(p - mean, 2));
+                    const variance = squaredDiffs.reduce((sum, sd) => sum + sd, 0) / this.prices.length;
+                    return Math.sqrt(variance);
+                }
+            }
+            
+            function buildCards() {
+                const container = document.getElementById('cards-container');
+                volatilities.forEach(v => {
+                    const card = document.createElement('div');
+                    card.className = 'vol-card';
+                    card.innerHTML = `
+                        <div class="vol-title">
+                            <span>${v.name}</span>
+                            <span class="price-display" id="price-${v.symbol}">-</span>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas class="mini-chart" id="chart-${v.symbol}"></canvas>
+                        </div>
+                        
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <span class="data-label">MACD</span>
+                                <span id="macd-${v.symbol}" class="indicator-value">-</span>
+                                <div id="macd-trend-${v.symbol}" class="trend-indicator trend-neutral"></div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">Signal</span>
+                                <span id="signal-${v.symbol}" class="indicator-value">-</span>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">Histogram</span>
+                                <span id="histogram-${v.symbol}" class="indicator-value">-</span>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">SMA20</span>
+                                <span id="sma-${v.symbol}" class="indicator-value">-</span>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">RSI14</span>
+                                <span id="rsi-${v.symbol}" class="indicator-value">-</span>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">Volatility</span>
+                                <span id="volatility-${v.symbol}" class="indicator-value">-</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-container">
+                            <div class="stat-item">
+                                <span class="stat-label">High:</span>
+                                <span id="high-${v.symbol}" class="stat-value">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Low:</span>
+                                <span id="low-${v.symbol}" class="stat-value">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Range:</span>
+                                <span id="range-${v.symbol}" class="stat-value">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Change:</span>
+                                <span id="change-${v.symbol}" class="stat-value">-</span>
+                            </div>
+                        </div>
+                        
+                        <div class="barrier-inputs">
+                            <div class="barrier-group">
+                                <span class="barrier-label">HIGHER</span>
+                                <input type="number" step="0.01" class="barrier-input" id="barrier-higher-${v.symbol}" value="${v.barrierHigher}" />
+                            </div>
+                            <div class="barrier-group">
+                                <span class="barrier-label">LOWER</span>
+                                <input type="number" step="0.01" class="barrier-input" id="barrier-lower-${v.symbol}" value="${v.barrierLower}" />
+                            </div>
+                        </div>
+                        
+                        <div id="signal-text-${v.symbol}" class="signal-area signal-waiting">
+                            ANALYZING
+                            <span id="signal-strength-${v.symbol}" class="signal-strength"></span>
+                        </div>
+                        
+                        <div class="volatility-meter">
+                            <div id="volatility-level-${v.symbol}" class="volatility-level" style="width: 0%"></div>
+                        </div>
+                        
+                        <div id="countdown-${v.symbol}" class="countdown"></div>
+                    `;
+                    container.appendChild(card);
+                    
+                    // Initialize chart
+                    const canvas = card.querySelector(`#chart-${v.symbol}`);
+                    const ctx = canvas.getContext('2d');
+                    
+                    dataStore[v.symbol] = { 
+                        closes: [],
+                        highs: [],
+                        lows: [],
+                        macdCalc: new MACDCalculator(),
+                        rsiCalc: new RSICalculator(14),
+                        volatilityCalc: new VolatilityCalculator(20),
+                        confirmationCount: 0,
+                        lastSignal: null,
+                        chart: {
+                            ctx,
+                            canvas,
+                            initialized: false
+                        },
+                        ui: {
+                            price: card.querySelector(`#price-${v.symbol}`),
+                            macdLine: card.querySelector(`#macd-${v.symbol}`),
+                            signalLine: card.querySelector(`#signal-${v.symbol}`),
+                            histogram: card.querySelector(`#histogram-${v.symbol}`),
+                            sma: card.querySelector(`#sma-${v.symbol}`),
+                            rsi: card.querySelector(`#rsi-${v.symbol}`),
+                            volatility: card.querySelector(`#volatility-${v.symbol}`),
+                            signalText: card.querySelector(`#signal-text-${v.symbol}`),
+                            signalStrength: card.querySelector(`#signal-strength-${v.symbol}`),
+                            countdown: card.querySelector(`#countdown-${v.symbol}`),
+                            macdTrend: card.querySelector(`#macd-trend-${v.symbol}`),
+                            volatilityLevel: card.querySelector(`#volatility-level-${v.symbol}`),
+                            high: card.querySelector(`#high-${v.symbol}`),
+                            low: card.querySelector(`#low-${v.symbol}`),
+                            range: card.querySelector(`#range-${v.symbol}`),
+                            change: card.querySelector(`#change-${v.symbol}`)
+                        }
+                    };
+                });
+            }
+            
+            function drawMiniChart(symbol) {
+                const data = dataStore[symbol];
+                if (data.closes.length < 2) return;
+                
+                const ctx = data.chart.ctx;
+                const canvas = data.chart.canvas;
+                const width = canvas.width = canvas.offsetWidth;
+                const height = canvas.height = canvas.offsetHeight;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, width, height);
+                
+                // Get recent prices (last 30 data points or all if less)
+                const recentPrices = data.closes.slice(-30);
+                const maxPrice = Math.max(...recentPrices);
+                const minPrice = Math.min(...recentPrices);
+                const priceRange = maxPrice - minPrice;
+                
+                // Draw price line
+                ctx.beginPath();
+                ctx.strokeStyle = '#00c8ff';
+                ctx.lineWidth = 1.5;
+                
+                recentPrices.forEach((price, i) => {
+                    const x = (i / (recentPrices.length - 1)) * width;
+                    const y = height - ((price - minPrice) / priceRange * height);
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+                
+                // Draw SMA line if available
+                if (data.closes.length >= 20) {
+                    const smaValues = [];
+                    for (let i = 0; i < recentPrices.length; i++) {
+                        const startIdx = data.closes.length - recentPrices.length + i - 19;
+                        if (startIdx >= 0) {
+                            const sma = calculateSMA(data.closes.slice(startIdx, startIdx + 20));
+                            smaValues.push(sma);
+                        }
+                    }
+                    
+                    if (smaValues.length > 0) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = '#ff9800';
+                        ctx.lineWidth = 1;
+                        
+                        smaValues.forEach((sma, i) => {
+                            const x = ((i + (recentPrices.length - smaValues.length)) / (recentPrices.length - 1)) * width;
+                            const y = height - ((sma - minPrice) / priceRange * height);
+                            
+                            if (i === 0) {
+                                ctx.moveTo(x, y);
+                            } else {
+                                ctx.lineTo(x, y);
+                            }
+                        });
+                        
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            function connectWebSocket() {
+                updateStatus('connecting', 'Connecting...');
+                if(ws) ws.close();
+                ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+                
+                ws.onopen = () => {
+                    updateStatus('connected', 'Connected');
+                    volatilities.forEach(v => ws.send(JSON.stringify({ ticks: v.symbol, subscribe: 1 })));
+                };
+                
+                ws.onmessage = e => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if(data.msg_type === 'tick') handleTick(data.tick);
+                    } catch(e) {
+                        console.error('Error parsing message:', e);
+                    }
+                };
+                
+                ws.onclose = () => {
+                    updateStatus('disconnected', 'Disconnected');
+                    setTimeout(connectWebSocket, 3000);
+                };
+                
+                ws.onerror = (e) => {
+                    console.error('WebSocket error:', e);
+                    ws.close();
+                };
+            }
+            
+            function updateStatus(status, text) {
+                const el = document.getElementById('connection-status');
+                el.className = `connection-status ${status}`;
+                el.textContent = text;
+            }
+            
+            function calculateSMA(prices, period = 20) {
+                if (prices.length < period) return null;
+                return prices.slice(-period).reduce((sum, price) => sum + price, 0) / period;
+            }
+            
+            function calculateHighLow(closes) {
+                if (closes.length === 0) return { high: null, low: null };
+                
+                const period = Math.min(20, closes.length);
+                const recent = closes.slice(-period);
+                return {
+                    high: Math.max(...recent),
+                    low: Math.min(...recent)
+                };
+            }
+            
+            function handleTick(tick) {
+                const { symbol, quote } = tick;
+                const d = dataStore[symbol];
+                if(!d) return;
+                
+                const price = parseFloat(quote);
+                d.closes.push(price);
+                
+                // Track highs and lows
+                if (d.highs.length === 0 || price > d.highs[d.highs.length - 1]) {
+                    d.highs.push(price);
+                } else {
+                    d.highs.push(d.highs[d.highs.length - 1]);
+                }
+                
+                if (d.lows.length === 0 || price < d.lows[d.lows.length - 1]) {
+                    d.lows.push(price);
+                } else {
+                    d.lows.push(d.lows[d.lows.length - 1]);
+                }
+                
+                // Keep only recent data to manage memory
+                if(d.closes.length > MAX_HISTORY) {
+                    d.closes.shift();
+                    d.highs.shift();
+                    d.lows.shift();
+                }
+                
+                // Update UI with current price
+                d.ui.price.textContent = price.toFixed(3);
+                
+                // Calculate price change
+                if (d.closes.length >= 2) {
+                    const prevPrice = d.closes[d.closes.length - 2];
+                    const change = ((price - prevPrice) / prevPrice * 100).toFixed(2);
+                    d.ui.change.textContent = `${change}%`;
+                    d.ui.change.style.color = change >= 0 ? '#00e676' : '#ff5252';
+                }
+                
+                // Update high/low/range
+                const { high, low } = calculateHighLow(d.closes);
+                if (high !== null && low !== null) {
+                    d.ui.high.textContent = high.toFixed(3);
+                    d.ui.low.textContent = low.toFixed(3);
+                    d.ui.range.textContent = (high - low).toFixed(3);
+                }
+                
+                // Update MACD indicators
+                const macd = d.macdCalc.update(price);
+                d.ui.macdLine.textContent = macd.macdLine.toFixed(3);
+                d.ui.signalLine.textContent = macd.signalLine.toFixed(3);
+                d.ui.histogram.textContent = macd.histogram.toFixed(3);
+                
+                // Update MACD trend indicator
+                d.ui.macdTrend.className = `trend-indicator trend-${macd.direction}`;
+                
+                // Update RSI
+                const rsi = d.rsiCalc.update(price);
+                if (rsi !== null) {
+                    d.ui.rsi.textContent = rsi.toFixed(1);
+                    // Color RSI based on overbought/oversold
+                    d.ui.rsi.style.color = rsi > 70 ? '#ff5252' : rsi < 30 ? '#00e676' : 'white';
+                }
+                
+                // Update volatility
+                const volatility = d.volatilityCalc.update(price);
+                d.ui.volatility.textContent = volatility.toFixed(3);
+                // Update volatility meter (0-100% scale)
+                const maxVol = symbol === '1HZ10V' ? 0.5 : 
+                              symbol === '1HZ25V' ? 1.0 :
+                              symbol === '1HZ50V' ? 2.0 : 3.0;
+                const volPercent = Math.min(100, (volatility / maxVol) * 100);
+                d.ui.volatilityLevel.style.width = `${volPercent}%`;
+                
+                // Calculate SMA (20-period)
+                const sma = calculateSMA(d.closes, 20);
+                if (sma !== null) {
+                    d.ui.sma.textContent = sma.toFixed(3);
+                }
+                
+                // Draw mini chart
+                drawMiniChart(symbol);
+                
+                // Only generate signals if we have enough data
+                if (d.closes.length >= MIN_DATA_POINTS && sma !== null && rsi !== null) {
+                    // Enhanced signal logic with multiple confirmations and strength calculation
+                    let signal = null;
+                    let signalStrength = 0;
+                    
+                    // Calculate signal strength (0-1)
+                    const priceDistanceFromSMA = Math.abs(price - sma) / sma;
+                    const rsiStrength = rsi > 50 ? (rsi - 50) / 30 : (50 - rsi) / 30;
+                    const macdStrength = macd.strength;
+                    
+                    // Combined strength (weighted average)
+                    const combinedStrength = Math.min(1, 
+                        (priceDistanceFromSMA * 0.4 + 
+                         rsiStrength * 0.3 + 
+                         macdStrength * 0.3) * 2
+                    );
+                    
+                    // Bullish conditions
+                    const bullishConditions = (
+                        price > sma && 
+                        macd.direction === 'up' && 
+                        macd.histogram > 0 && 
+                        rsi < 70
+                    );
+                    
+                    // Bearish conditions
+                    const bearishConditions = (
+                        price < sma && 
+                        macd.direction === 'down' && 
+                        macd.histogram < 0 && 
+                        rsi > 30
+                    );
+                    
+                    // Check for signal confirmation
+                    if (bullishConditions) {
+                        if (d.lastSignal === 'HIGHER') {
+                            d.confirmationCount++;
+                            signalStrength = Math.min(1, combinedStrength * (d.confirmationCount / CONFIRMATION_PERIOD));
+                        } else {
+                            d.lastSignal = 'HIGHER';
+                            d.confirmationCount = 1;
+                            signalStrength = combinedStrength * 0.5;
+                        }
+                    } else if (bearishConditions) {
+                        if (d.lastSignal === 'LOWER') {
+                            d.confirmationCount++;
+                            signalStrength = Math.min(1, combinedStrength * (d.confirmationCount / CONFIRMATION_PERIOD));
+                        } else {
+                            d.lastSignal = 'LOWER';
+                            d.confirmationCount = 1;
+                            signalStrength = combinedStrength * 0.5;
+                        }
+                    } else {
+                        d.lastSignal = null;
+                        d.confirmationCount = 0;
+                    }
+                    
+                    // Only show signal after confirmation period
+                    if (d.confirmationCount >= CONFIRMATION_PERIOD) {
+                        const barrier = parseFloat(
+                            document.getElementById(`barrier-${d.lastSignal.toLowerCase()}-${symbol}`).value
+                        );
+                        
+                        d.ui.signalText.textContent = `${d.lastSignal} @ ${barrier.toFixed(2)}`;
+                        d.ui.signalText.className = `signal-area signal-${d.lastSignal.toLowerCase()}`;
+                        
+                        // Display signal strength
+                        const strengthPercent = Math.round(signalStrength * 100);
+                        d.ui.signalStrength.textContent = `Strength: ${strengthPercent}%`;
+                        d.ui.countdown.textContent = getSignalQualityText(signalStrength);
+                    } else {
+                        d.ui.signalText.textContent = 'ANALYZING';
+                        d.ui.signalText.className = 'signal-area signal-waiting';
+                        d.ui.signalStrength.textContent = '';
+                        d.ui.countdown.textContent = d.lastSignal ? 
+                            `Confirming ${d.confirmationCount}/${CONFIRMATION_PERIOD}` : 
+                            'Waiting for setup';
+                    }
+                } else {
+                    // Not enough data yet
+                    d.ui.signalText.textContent = 'GATHERING DATA';
+                    d.ui.signalText.className = 'signal-area signal-waiting';
+                    d.ui.signalStrength.textContent = '';
+                    d.ui.countdown.textContent = `${d.closes.length}/${MIN_DATA_POINTS} points`;
+                }
+            }
+            
+            function getSignalQualityText(strength) {
+                if (strength > 0.8) return 'Very Strong Signal';
+                if (strength > 0.6) return 'Strong Signal';
+                if (strength > 0.4) return 'Moderate Signal';
+                if (strength > 0.2) return 'Weak Signal';
+                return 'Very Weak Signal';
+            }
+            
+            // Initialize
+            document.addEventListener('DOMContentLoaded', () => {
+                buildCards();
+                connectWebSocket();
+                
+                // Add input change listeners for barriers
+                volatilities.forEach(v => {
+                    const higherInput = document.getElementById(`barrier-higher-${v.symbol}`);
+                    const lowerInput = document.getElementById(`barrier-lower-${v.symbol}`);
+                    
+                    higherInput.addEventListener('change', () => {
+                        v.barrierHigher = parseFloat(higherInput.value);
+                    });
+                    
+                    lowerInput.addEventListener('change', () => {
+                        v.barrierLower = parseFloat(lowerInput.value);
+                    });
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
