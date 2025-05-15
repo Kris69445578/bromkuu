@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>WAMITI'S HL ANALYZER</title>
+    <title>WAMITI'S HL ANALYZER PRO</title>
     <style>
         * {
             box-sizing: border-box;
@@ -252,6 +252,75 @@
             background: #0057ff;
             color: white;
         }
+        .indicator-section {
+            margin-top: 6px;
+            padding: 6px;
+            background: rgba(0, 87, 255, 0.1);
+            border-radius: 6px;
+        }
+        .indicator-section-title {
+            font-size: 0.7em;
+            color: #7db8ff;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+        .sentiment-meter {
+            height: 8px;
+            width: 100%;
+            background: #333;
+            border-radius: 4px;
+            margin-top: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        .sentiment-level {
+            height: 100%;
+            width: 50%;
+            background: linear-gradient(90deg, #ff5252, #ffeb3b, #00e676);
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .sentiment-marker {
+            position: absolute;
+            top: -2px;
+            width: 2px;
+            height: 12px;
+            background: white;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .sentiment-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.6em;
+            margin-top: 2px;
+        }
+        .indicator-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .indicator-cell {
+            text-align: center;
+            font-size: 0.7em;
+            padding: 2px;
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .positive {
+            color: #00e676;
+            background: rgba(0, 230, 118, 0.1);
+        }
+        .negative {
+            color: #ff5252;
+            background: rgba(255, 82, 82, 0.1);
+        }
+        .neutral {
+            color: #ffeb3b;
+            background: rgba(255, 235, 59, 0.1);
+        }
         @media (max-width: 600px) {
             .main-content {
                 grid-template-columns: 1fr 1fr;
@@ -273,7 +342,7 @@
 <body>
     <div id="app">
         <header>
-            <span>WAMITI'S HL ANALYZER</span>
+            <span>WAMITI'S HL ANALYZER PRO</span>
             <span class="time-display" id="current-time">--:--:--</span>
         </header>
         <div class="main-content" id="cards-container"></div>
@@ -290,9 +359,9 @@
             
             const dataStore = {};
             let ws = null;
-            const MIN_DATA_POINTS = 30; // Increased for better analysis
+            const MIN_DATA_POINTS = 30;
             const CONFIRMATION_PERIOD = 3;
-            const MAX_HISTORY = 200; // Store more data points for better analysis
+            const MAX_HISTORY = 200;
             
             // Update current time
             function updateCurrentTime() {
@@ -347,7 +416,6 @@
                     const signalLine = this.signalEMA.update(macdLine);
                     const histogram = macdLine - signalLine;
                     
-                    // Calculate trend direction and strength
                     if (this.history.length > 0) {
                         const lastHist = this.history[this.history.length - 1].histogram;
                         if (histogram > 0 && lastHist > 0) {
@@ -461,6 +529,148 @@
                 }
             }
             
+            class MarketSentiment {
+                constructor() {
+                    this.buyPressure = 0.5;
+                    this.sellPressure = 0.5;
+                    this.history = [];
+                }
+                
+                update(price, volume, trendDirection) {
+                    // Simplified sentiment calculation based on price movement and trend
+                    const priceChange = this.history.length > 0 ? 
+                        (price - this.history[this.history.length - 1].price) / this.history[this.history.length - 1].price : 0;
+                    
+                    // Adjust sentiment based on price change and trend
+                    if (trendDirection === 'up') {
+                        this.buyPressure = Math.min(1, this.buyPressure + 0.05 + (priceChange * 10));
+                        this.sellPressure = Math.max(0, this.sellPressure - 0.05);
+                    } else if (trendDirection === 'down') {
+                        this.sellPressure = Math.min(1, this.sellPressure + 0.05 - (priceChange * 10));
+                        this.buyPressure = Math.max(0, this.buyPressure - 0.05);
+                    }
+                    
+                    // Normalize
+                    const total = this.buyPressure + this.sellPressure;
+                    this.buyPressure /= total;
+                    this.sellPressure /= total;
+                    
+                    // Add some randomness to simulate market noise
+                    this.buyPressure += (Math.random() - 0.5) * 0.05;
+                    this.sellPressure += (Math.random() - 0.5) * 0.05;
+                    
+                    // Ensure values stay within bounds
+                    this.buyPressure = Math.max(0, Math.min(1, this.buyPressure));
+                    this.sellPressure = Math.max(0, Math.min(1, this.sellPressure));
+                    
+                    // Store history
+                    this.history.push({
+                        price,
+                        buyPressure: this.buyPressure,
+                        sellPressure: this.sellPressure,
+                        timestamp: Date.now()
+                    });
+                    
+                    if (this.history.length > 50) {
+                        this.history.shift();
+                    }
+                    
+                    return {
+                        buyPressure: this.buyPressure,
+                        sellPressure: this.sellPressure,
+                        sentiment: this.buyPressure - this.sellPressure
+                    };
+                }
+                
+                getSentiment() {
+                    return this.buyPressure - this.sellPressure;
+                }
+            }
+            
+            class TrendConfirmation {
+                constructor() {
+                    this.trendStrength = 0;
+                    this.confirmationScore = 0;
+                    this.trendDirection = 'neutral';
+                }
+                
+                update(macdDirection, macdStrength, rsi, priceVsSma, volatility) {
+                    // Calculate trend confirmation score (0-100)
+                    let score = 0;
+                    
+                    // MACD confirmation (30% weight)
+                    if (macdDirection === 'up') {
+                        score += 30 * macdStrength;
+                    } else if (macdDirection === 'down') {
+                        score -= 30 * macdStrength;
+                    }
+                    
+                    // RSI confirmation (20% weight)
+                    if (rsi > 70) {
+                        score -= 20 * ((rsi - 70) / 30);
+                    } else if (rsi < 30) {
+                        score += 20 * ((30 - rsi) / 30);
+                    } else if (rsi > 50) {
+                        score += 10 * ((rsi - 50) / 20);
+                    } else {
+                        score -= 10 * ((50 - rsi) / 20);
+                    }
+                    
+                    // Price vs SMA confirmation (30% weight)
+                    score += 30 * Math.sign(priceVsSma) * Math.min(1, Math.abs(priceVsSma * 10));
+                    
+                    // Volatility adjustment (20% weight) - higher volatility reduces confidence
+                    score *= 1 - (0.2 * Math.min(1, volatility / 2));
+                    
+                    // Smooth the score
+                    this.confirmationScore = this.confirmationScore * 0.7 + score * 0.3;
+                    
+                    // Determine trend direction
+                    if (this.confirmationScore > 15) {
+                        this.trendDirection = 'up';
+                        this.trendStrength = Math.min(1, this.confirmationScore / 50);
+                    } else if (this.confirmationScore < -15) {
+                        this.trendDirection = 'down';
+                        this.trendStrength = Math.min(1, -this.confirmationScore / 50);
+                    } else {
+                        this.trendDirection = 'neutral';
+                        this.trendStrength = 0;
+                    }
+                    
+                    return {
+                        direction: this.trendDirection,
+                        strength: this.trendStrength,
+                        score: this.confirmationScore
+                    };
+                }
+            }
+            
+            class FundamentalIndicators {
+                constructor() {
+                    this.volumeEMA = new EMA(20);
+                    this.priceMomentum = 0;
+                }
+                
+                update(price, volume) {
+                    // Update volume EMA
+                    const volumeEMA = this.volumeEMA.update(volume);
+                    
+                    // Calculate price momentum (rate of change)
+                    this.priceMomentum = this.priceMomentum * 0.9 + (price - (this.lastPrice || price)) * 0.1;
+                    this.lastPrice = price;
+                    
+                    // Calculate volume strength (0-1)
+                    const volumeStrength = volume / (volumeEMA * 1.5);
+                    
+                    return {
+                        volumeEMA: volumeEMA,
+                        volumeStrength: Math.min(1, volumeStrength),
+                        priceMomentum: this.priceMomentum,
+                        momentumDirection: this.priceMomentum > 0 ? 'up' : 'down'
+                    };
+                }
+            }
+            
             function buildCards() {
                 const container = document.getElementById('cards-container');
                 volatilities.forEach(v => {
@@ -523,6 +733,44 @@
                             </div>
                         </div>
                         
+                        <!-- Market Sentiment Section -->
+                        <div class="indicator-section">
+                            <div class="indicator-section-title">C. MARKET SENTIMENT</div>
+                            <div class="sentiment-meter">
+                                <div class="sentiment-level"></div>
+                                <div class="sentiment-marker"></div>
+                            </div>
+                            <div class="sentiment-labels">
+                                <span>Bearish</span>
+                                <span>Neutral</span>
+                                <span>Bullish</span>
+                            </div>
+                            <div id="sentiment-value-${v.symbol}" class="countdown" style="text-align: center;">0.00</div>
+                        </div>
+                        
+                        <!-- Trend Confirmation Indicators -->
+                        <div class="indicator-section">
+                            <div class="indicator-section-title">TC. TREND CONFIRMATION</div>
+                            <div class="indicator-grid">
+                                <div id="tc-macd-${v.symbol}" class="indicator-cell neutral">MACD: -</div>
+                                <div id="tc-rsi-${v.symbol}" class="indicator-cell neutral">RSI: -</div>
+                                <div id="tc-sma-${v.symbol}" class="indicator-cell neutral">SMA: -</div>
+                                <div id="tc-vol-${v.symbol}" class="indicator-cell neutral">VOL: -</div>
+                                <div id="tc-score-${v.symbol}" class="indicator-cell neutral">SCORE: 0</div>
+                                <div id="tc-strength-${v.symbol}" class="indicator-cell neutral">STR: 0%</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Fundamental-like Indicators -->
+                        <div class="indicator-section">
+                            <div class="indicator-section-title">F. MARKET DYNAMICS</div>
+                            <div class="indicator-grid">
+                                <div id="f-volume-${v.symbol}" class="indicator-cell neutral">VOLUME: -</div>
+                                <div id="f-momentum-${v.symbol}" class="indicator-cell neutral">MOMENTUM: -</div>
+                                <div id="f-trend-${v.symbol}" class="indicator-cell neutral">TREND: -</div>
+                            </div>
+                        </div>
+                        
                         <div class="barrier-inputs">
                             <div class="barrier-group">
                                 <span class="barrier-label">HIGHER</span>
@@ -558,6 +806,9 @@
                         macdCalc: new MACDCalculator(),
                         rsiCalc: new RSICalculator(14),
                         volatilityCalc: new VolatilityCalculator(20),
+                        sentimentCalc: new MarketSentiment(),
+                        trendConfirmation: new TrendConfirmation(),
+                        fundamentalIndicators: new FundamentalIndicators(),
                         confirmationCount: 0,
                         lastSignal: null,
                         chart: {
@@ -581,7 +832,18 @@
                             high: card.querySelector(`#high-${v.symbol}`),
                             low: card.querySelector(`#low-${v.symbol}`),
                             range: card.querySelector(`#range-${v.symbol}`),
-                            change: card.querySelector(`#change-${v.symbol}`)
+                            change: card.querySelector(`#change-${v.symbol}`),
+                            sentimentValue: card.querySelector(`#sentiment-value-${v.symbol}`),
+                            sentimentMeter: card.querySelector(`#sentiment-${v.symbol} .sentiment-level`),
+                            tcMacd: card.querySelector(`#tc-macd-${v.symbol}`),
+                            tcRsi: card.querySelector(`#tc-rsi-${v.symbol}`),
+                            tcSma: card.querySelector(`#tc-sma-${v.symbol}`),
+                            tcVol: card.querySelector(`#tc-vol-${v.symbol}`),
+                            tcScore: card.querySelector(`#tc-score-${v.symbol}`),
+                            tcStrength: card.querySelector(`#tc-strength-${v.symbol}`),
+                            fVolume: card.querySelector(`#f-volume-${v.symbol}`),
+                            fMomentum: card.querySelector(`#f-momentum-${v.symbol}`),
+                            fTrend: card.querySelector(`#f-trend-${v.symbol}`)
                         }
                     };
                 });
@@ -652,6 +914,111 @@
                         
                         ctx.stroke();
                     }
+                }
+            }
+            
+            function updateSentimentDisplay(symbol, sentiment) {
+                const data = dataStore[symbol];
+                if (!data) return;
+                
+                // Update sentiment value display
+                const sentimentValue = sentiment.sentiment; // Range from -1 to 1
+                data.ui.sentimentValue.textContent = sentimentValue.toFixed(2);
+                
+                // Update sentiment meter position
+                const meter = data.ui.sentimentMeter;
+                if (meter) {
+                    // Position the sentiment level (0% = left, 100% = right)
+                    // We want -1 (bearish) to be at 0%, 0 (neutral) at 50%, 1 (bullish) at 100%
+                    const position = (sentimentValue + 1) / 2 * 100;
+                    meter.style.transform = `translateX(-50%) translateX(${position - 50}%)`;
+                    
+                    // Color based on sentiment
+                    if (sentimentValue > 0.3) {
+                        meter.style.background = 'linear-gradient(90deg, #ffeb3b, #00e676)';
+                        data.ui.sentimentValue.style.color = '#00e676';
+                    } else if (sentimentValue < -0.3) {
+                        meter.style.background = 'linear-gradient(90deg, #ff5252, #ffeb3b)';
+                        data.ui.sentimentValue.style.color = '#ff5252';
+                    } else {
+                        meter.style.background = 'linear-gradient(90deg, #ff5252, #ffeb3b, #00e676)';
+                        data.ui.sentimentValue.style.color = '#ffeb3b';
+                    }
+                }
+            }
+            
+            function updateTrendConfirmationDisplay(symbol, tcData, macdData, rsi, priceVsSma, volatility) {
+                const data = dataStore[symbol];
+                if (!data) return;
+                
+                // Update MACD confirmation
+                updateIndicatorCell(data.ui.tcMacd, 
+                    `MACD: ${macdData.direction.toUpperCase()}`, 
+                    macdData.direction);
+                
+                // Update RSI confirmation
+                let rsiDirection = 'neutral';
+                if (rsi > 70) rsiDirection = 'down';
+                else if (rsi < 30) rsiDirection = 'up';
+                else if (rsi > 50) rsiDirection = 'up';
+                else rsiDirection = 'down';
+                
+                updateIndicatorCell(data.ui.tcRsi, 
+                    `RSI: ${rsi.toFixed(1)}`, 
+                    rsiDirection);
+                
+                // Update SMA confirmation
+                updateIndicatorCell(data.ui.tcSma, 
+                    `SMA: ${priceVsSma > 0 ? 'ABOVE' : 'BELOW'}`, 
+                    priceVsSma > 0 ? 'up' : 'down');
+                
+                // Update Volatility confirmation
+                const volDirection = volatility > 1 ? 'down' : 'up'; // High volatility reduces confidence
+                updateIndicatorCell(data.ui.tcVol, 
+                    `VOL: ${volatility.toFixed(2)}`, 
+                    volDirection);
+                
+                // Update score and strength
+                updateIndicatorCell(data.ui.tcScore, 
+                    `SCORE: ${Math.round(tcData.score)}`, 
+                    tcData.direction);
+                
+                updateIndicatorCell(data.ui.tcStrength, 
+                    `STR: ${Math.round(tcData.strength * 100)}%`, 
+                    tcData.direction);
+            }
+            
+            function updateFundamentalIndicatorsDisplay(symbol, fData) {
+                const data = dataStore[symbol];
+                if (!data) return;
+                
+                // Update volume indicator
+                updateIndicatorCell(data.ui.fVolume, 
+                    `VOLUME: ${(fData.volumeStrength * 100).toFixed(0)}%`, 
+                    fData.volumeStrength > 0.8 ? 'up' : 
+                    fData.volumeStrength < 0.5 ? 'down' : 'neutral');
+                
+                // Update momentum indicator
+                updateIndicatorCell(data.ui.fMomentum, 
+                    `MOMENTUM: ${fData.priceMomentum.toFixed(3)}`, 
+                    fData.momentumDirection);
+                
+                // Update trend indicator
+                updateIndicatorCell(data.ui.fTrend, 
+                    `TREND: ${fData.momentumDirection.toUpperCase()}`, 
+                    fData.momentumDirection);
+            }
+            
+            function updateIndicatorCell(element, text, direction) {
+                element.textContent = text;
+                element.className = 'indicator-cell';
+                
+                if (direction === 'up') {
+                    element.classList.add('positive');
+                } else if (direction === 'down') {
+                    element.classList.add('negative');
+                } else {
+                    element.classList.add('neutral');
                 }
             }
             
@@ -787,6 +1154,25 @@
                     d.ui.sma.textContent = sma.toFixed(3);
                 }
                 
+                // Update Market Sentiment
+                const sentiment = d.sentimentCalc.update(price, 1, macd.direction); // Using volume=1 as placeholder
+                updateSentimentDisplay(symbol, sentiment);
+                
+                // Update Trend Confirmation indicators
+                const priceVsSma = sma ? (price - sma) / sma : 0;
+                const tcData = d.trendConfirmation.update(
+                    macd.direction, 
+                    macd.strength, 
+                    rsi || 50, 
+                    priceVsSma, 
+                    volatility
+                );
+                updateTrendConfirmationDisplay(symbol, tcData, macd, rsi || 50, priceVsSma, volatility);
+                
+                // Update Fundamental-like indicators
+                const fData = d.fundamentalIndicators.update(price, 1); // Using volume=1 as placeholder
+                updateFundamentalIndicatorsDisplay(symbol, fData);
+                
                 // Draw mini chart
                 drawMiniChart(symbol);
                 
@@ -800,28 +1186,36 @@
                     const priceDistanceFromSMA = Math.abs(price - sma) / sma;
                     const rsiStrength = rsi > 50 ? (rsi - 50) / 30 : (50 - rsi) / 30;
                     const macdStrength = macd.strength;
+                    const sentimentStrength = Math.abs(sentiment.sentiment);
+                    const tcStrength = tcData.strength;
                     
                     // Combined strength (weighted average)
                     const combinedStrength = Math.min(1, 
-                        (priceDistanceFromSMA * 0.4 + 
-                         rsiStrength * 0.3 + 
-                         macdStrength * 0.3) * 2
+                        (priceDistanceFromSMA * 0.3 + 
+                         rsiStrength * 0.2 + 
+                         macdStrength * 0.2 +
+                         sentimentStrength * 0.15 +
+                         tcStrength * 0.15) * 2
                     );
                     
-                    // Bullish conditions
+                    // Bullish conditions (now includes sentiment and trend confirmation)
                     const bullishConditions = (
                         price > sma && 
                         macd.direction === 'up' && 
                         macd.histogram > 0 && 
-                        rsi < 70
+                        rsi < 70 &&
+                        sentiment.sentiment > 0.1 &&
+                        tcData.direction === 'up'
                     );
                     
-                    // Bearish conditions
+                    // Bearish conditions (now includes sentiment and trend confirmation)
                     const bearishConditions = (
                         price < sma && 
                         macd.direction === 'down' && 
                         macd.histogram < 0 && 
-                        rsi > 30
+                        rsi > 30 &&
+                        sentiment.sentiment < -0.1 &&
+                        tcData.direction === 'down'
                     );
                     
                     // Check for signal confirmation
